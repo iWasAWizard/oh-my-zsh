@@ -2,6 +2,22 @@
 
 set -euo pipefail
 
+# --- dependency checks ---
+
+if ! command -v zsh &>/dev/null; then
+    echo "zsh is required but was not found. Install it first (e.g. 'sudo apt install zsh' or 'brew install zsh')." >&2
+    exit 1
+fi
+
+optional_tools=(zsh-syntax-highlighting zsh-autosuggestions fzf thefuck)
+for tool in "${optional_tools[@]}"; do
+    if ! command -v "${tool}" &>/dev/null; then
+        echo "Optional tool not found: ${tool} (the config will skip it automatically)"
+    fi
+done
+
+# --- setup ---
+
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 source_zshrc="${script_dir}/.zshrc"
 target_zshrc="${HOME}/.zshrc"
