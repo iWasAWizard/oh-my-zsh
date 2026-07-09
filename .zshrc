@@ -3,10 +3,12 @@
 
 plugins=(
     autopep8
+    colored-man-pages
     command-not-found
     common-aliases
     copypath
     copyfile
+    dirhistory
     docker
     docker-compose
     extract
@@ -21,6 +23,7 @@ plugins=(
     ubuntu
     uv
     poetry
+    history-substring-search
     z
 )
 
@@ -32,6 +35,10 @@ setopt nonomatch           # hide error message if there is no match for the pat
 setopt notify              # report the status of background jobs immediately
 setopt numericglobsort     # sort filenames numerically when it makes sense
 setopt promptsubst         # enable command substitution in prompt
+setopt no_beep             # disable terminal bell
+setopt auto_pushd          # push old directory to stack on cd
+setopt pushd_ignore_dups   # no duplicate directories in stack
+setopt pushdminus          # swap meaning of + and - for pushd
 
 
 WORDCHARS='_-' # Don't consider certain characters part of the word
@@ -52,10 +59,18 @@ bindkey '^[[6~' end-of-buffer-or-history          # page down
 bindkey '^[[H' beginning-of-line                  # home
 bindkey '^[[F' end-of-line                        # end
 bindkey '^[[Z' undo                               # shift + tab undo last action
+bindkey '^[[A' history-substring-search-up        # up arrow
+bindkey '^[[B' history-substring-search-down      # down arrow
 
 # enable completion features
 autoload -Uz compinit
-compinit -d ~/.cache/zcompdump
+mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}"
+ZSH_COMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zcompdump"
+if [ ! -s "$ZSH_COMPDUMP" ] || [ -n "$(find "$ZSH_COMPDUMP" -mtime +1 -print -quit 2>/dev/null)" ]; then
+    compinit -d "$ZSH_COMPDUMP"
+else
+    compinit -C -d "$ZSH_COMPDUMP"
+fi
 zstyle ':completion:*:*:*:*:*' menu select
 zstyle ':completion:*' auto-description 'specify: %d'
 zstyle ':completion:*' completer _expand _complete
@@ -63,7 +78,9 @@ zstyle ':completion:*' format 'Completing %d'
 zstyle ':completion:*' group-name ''
 zstyle ':completion:*' list-colors ''
 zstyle ':completion:*' list-prompt %SAt %p: Hit TAB for more, or the character to insert%s
-zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'
+zstyle ':completion::complete:*' use-cache on
+zstyle ':completion::complete:*' cache-path "${XDG_CACHE_HOME:-$HOME/.cache}/zcompcache"
+zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}' 'r:|[._-]=* r:|=*'
 zstyle ':completion:*' rehash true
 zstyle ':completion:*' select-prompt %SScrolling active: current selection at %p%s
 zstyle ':completion:*' use-compctl false
@@ -72,11 +89,14 @@ zstyle ':completion:*:kill:*' command 'ps -u $USER -o pid,%cpu,tty,cputime,cmd'
 
 # History configurations
 HISTFILE=~/.zsh_history
-HISTSIZE=1000
-SAVEHIST=2000
+HISTSIZE=50000
+SAVEHIST=100000
+setopt extended_history      # save timestamped history entries
 setopt hist_expire_dups_first # delete duplicates first when HISTFILE size exceeds HISTSIZE
+setopt hist_find_no_dups      # skip duplicate matches in history searches
 setopt hist_ignore_dups       # ignore duplicated commands history list
 setopt hist_ignore_space      # ignore commands that start with space
+setopt hist_reduce_blanks     # trim superfluous blanks from history lines
 setopt hist_verify            # show command with history expansion to user before running it
 #setopt share_history         # share command history data
 
@@ -123,7 +143,7 @@ configure_prompt() {
         twoline)
             PROMPT=$'%F{%(#.blue.green)}┌──${debian_chroot:+($debian_chroot)─}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))─}(%B%F{%(#.red.blue)}%n'$prompt_symbol$'%m%b%F{%(#.blue.green)})-[%B%F{reset}%(6~.%-1~/…/%4~.%5~)%b%F{%(#.blue.green)}]\n└─%B%(#.%F{red}#.%F{blue}$)%b%F{reset} '
             # Right-side prompt with exit codes and background processes
-            #RPROMPT=$'%(?.. %? %F{red}%B⨯%b%F{reset})%(1j. %j %F{yellow}%B⚙%b%F{reset}.)'
+            RPROMPT=$'%(?.. %? %F{red}%B⨯%b%F{reset})%(1j. %j %F{yellow}%B⚙%b%F{reset}.)'
             ;;
         oneline)
             PROMPT=$'${debian_chroot:+($debian_chroot)}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))}%B%F{%(#.red.blue)}%n@%m%b%F{reset}:%B%F{%(#.blue.green)}%~%b%F{reset}%(#.#.$) '
@@ -268,12 +288,51 @@ fi
 alias ll='ls -l'
 alias la='ls -A'
 alias l='ls -CF'
+alias lls='ls -lahS'
+alias llt='ls -laht'
+alias lld='ls -lad */'
+alias cp='cp -i'
+alias mv='mv -i'
+alias rm='rm -i'
+alias ..='cd ..'
+alias ...='cd ../..'
+alias ....='cd ../../..'
+alias .....='cd ../../../..'
+
+# common shell utility aliases
+alias reload='source ~/.zshrc'
+alias zshrc='${EDITOR:-nano} ~/.zshrc'
+
+# default editors and pager
+export EDITOR="${EDITOR:-nano}"
+export VISUAL="${VISUAL:-$EDITOR}"
+export PAGER="${PAGER:-less}"
+
+mkcd() {
+    mkdir -p -- "$1" && cd -- "$1"
+}
 
 # enable auto-suggestions based on the history
 if [ -f /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]; then
     . /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
     # change suggestion color
     ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=244'
+fi
+
+# enable fzf shell integration when available
+if [ -f "$HOME/.fzf.zsh" ]; then
+    . "$HOME/.fzf.zsh"
+elif [ -f /usr/share/fzf/key-bindings.zsh ]; then
+    . /usr/share/fzf/key-bindings.zsh
+    [ -f /usr/share/fzf/completion.zsh ] && . /usr/share/fzf/completion.zsh
+elif [ -f /usr/share/doc/fzf/examples/key-bindings.zsh ]; then
+    . /usr/share/doc/fzf/examples/key-bindings.zsh
+    [ -f /usr/share/doc/fzf/examples/completion.zsh ] && . /usr/share/doc/fzf/examples/completion.zsh
+fi
+
+# enable thefuck alias when available
+if command -v thefuck >/dev/null 2>&1; then
+    eval "$(thefuck --alias)"
 fi
 
 # enable command-not-found if installed
