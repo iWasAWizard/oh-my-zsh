@@ -12,14 +12,14 @@ if [[ ! -f "${source_zshrc}" ]]; then
 fi
 
 if [[ -L "${target_zshrc}" ]] && [[ "$(readlink "${target_zshrc}")" == "${source_zshrc}" ]]; then
-    echo "~/.zshrc already points to ${source_zshrc}"
+    echo "${target_zshrc} already points to ${source_zshrc}"
     exit 0
 fi
 
 if [[ -e "${target_zshrc}" || -L "${target_zshrc}" ]]; then
     backup_path="${target_zshrc}.backup.$(date +%Y%m%d%H%M%S)"
     mv -- "${target_zshrc}" "${backup_path}"
-    echo "Backed up existing ~/.zshrc to ${backup_path}"
+    echo "Backed up existing ${target_zshrc} to ${backup_path}"
 fi
 
 ln -s -- "${source_zshrc}" "${target_zshrc}"
